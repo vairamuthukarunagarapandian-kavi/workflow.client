@@ -7,7 +7,7 @@ function App() {
   const [connection, setConnection] = useState(null);
   const [text, setText] = useState("");
   const [messages, setMessages] = useState([]);
-  const [tabId, setTabId] = useState(getTabId());
+  const [tabId] = useState(getTabId());
 
   useEffect(() => {
   const newConnection = new signalR.HubConnectionBuilder()
