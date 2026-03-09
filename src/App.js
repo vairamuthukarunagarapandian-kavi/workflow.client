@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from "react";
 import * as signalR from "@microsoft/signalr";
-import { tab } from "@testing-library/user-event/dist/tab";
-import { getTabId, getBrowserName } from "./GetMetaData";
-
+import { getTabId } from "./GetMetaData";
+const apiUrl = process.env.REACT_APP_API_URL;
 function App() {
 
   const [connection, setConnection] = useState(null);
@@ -12,7 +11,7 @@ function App() {
 
   useEffect(() => {
   const newConnection = new signalR.HubConnectionBuilder()
-    .withUrl(`https://localhost:7247/hub/rulehub?tabId=${tabId}`)
+    .withUrl(`${apiUrl}/hub/rulehub?tabId=${tabId}`)
     .withAutomaticReconnect()
     .build();
 
@@ -44,7 +43,7 @@ function App() {
 
   const sendRequest = async () => {
 
-    await fetch("https://localhost:7247/api/pii", {
+    await fetch(`${apiUrl}/api/pii`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
