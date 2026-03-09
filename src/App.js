@@ -1,14 +1,13 @@
 import React, { useEffect, useState } from "react";
 import * as signalR from "@microsoft/signalr";
-import { tab } from "@testing-library/user-event/dist/tab";
-import { getTabId, getBrowserName } from "./GetMetaData";
+import { getTabId } from "./GetMetaData";
 
 function App() {
 
   const [connection, setConnection] = useState(null);
   const [text, setText] = useState("");
   const [messages, setMessages] = useState([]);
-  const [tabId, setTabId] = useState(getTabId());
+  const [tabId] = useState(getTabId());
 
   useEffect(() => {
   const newConnection = new signalR.HubConnectionBuilder()
