@@ -1,25 +1,99 @@
-import logo from './logo.svg';
-import './App.css';
+import React, { useEffect, useState } from "react";
+import * as signalR from "@microsoft/signalr";
+import { tab } from "@testing-library/user-event/dist/tab";
+import { getTabId, getBrowserName } from "./GetMetaData";
 
 function App() {
+
+  const [connection, setConnection] = useState(null);
+  const [text, setText] = useState("");
+  const [messages, setMessages] = useState([]);
+  const [tabId, setTabId] = useState(getTabId());
+
+  useEffect(() => {
+  const newConnection = new signalR.HubConnectionBuilder()
+    .withUrl(`https://localhost:7247/hub/rulehub?tabId=${tabId}`)
+    .withAutomaticReconnect()
+    .build();
+
+  setConnection(newConnection);
+
+  }, [tabId]);
+
+  useEffect(() => {
+
+    if (connection) {
+
+      connection.start()
+        .then(() => {
+
+          console.log("Connected to SignalR");
+
+          connection.on("piiResult", (result) => {
+
+            setMessages(prev => [...prev, result]);
+
+          });
+
+        })
+        .catch(err => console.error(err));
+
+    }
+
+  }, [connection]);
+
+  const sendRequest = async () => {
+
+    await fetch("https://localhost:7247/api/pii", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        text: text,
+        tabId: tabId
+      })
+    });
+
+    setText("");
+
+  };
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
+    <div style={{ padding: 40 }}>
+
+      <h2>PII Detection Client</h2>
+
+      <input
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Enter text"
+      />
+
+      <button onClick={sendRequest}>Send</button>
+
+      <h3>Results</h3>
+
+      <ul>
+
+        {messages.map((m, index) => (
+          <li key={index}>
+            <label style = {{ color: m.containsPII ? "red" : "green" }}>
+              {m.containsPII ? "PII Detected" : "No PII Detected"}
+            </label>
+            |
+           Prompt: <span style={{ color: m.containsPII ? "red" : "blue" }}>{m.rawPrompt}</span> | 
+           ID: <span style={{ color: m.containsPII ? "red" : "blue" }}>{m.id}</span> | 
+           ContainsPII:<span style={{ color: m.containsPII ? "red" : "blue" }}>{m.containsPII.toString()}</span> | 
+           Message: <span style={{ color: m.containsPII ? "red" : "blue" }}>{m.message}</span>
+          </li>
+        ))}
+
+      </ul>
+
     </div>
   );
+
 }
 
 export default App;
