@@ -1,63 +1,113 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import * as signalR from "@microsoft/signalr";
 import { getTabId } from "./GetMetaData";
-const apiUrl = process.env.REACT_APP_API_URL;
+
+const localUrl = "https://localhost:7247";
+
 function App() {
 
-  const [connection, setConnection] = useState(null);
   const [text, setText] = useState("");
   const [messages, setMessages] = useState([]);
   const [tabId] = useState(getTabId());
+  const requestIdRef = useRef(0);
 
+  const connectionRef = useRef(null);
+
+  // -----------------------------
+  // SignalR Connection Setup
+  // -----------------------------
   useEffect(() => {
-  const newConnection = new signalR.HubConnectionBuilder()
-    .withUrl(`${apiUrl}/hub/rulehub?tabId=${tabId}`)
-    .withAutomaticReconnect()
-    .build();
 
-  setConnection(newConnection);
+    const connection = new signalR.HubConnectionBuilder()
+      .withUrl(`${localUrl}/hub/rulehub?tabId=${tabId}`)
+      .withAutomaticReconnect()
+      .build();
+
+    connectionRef.current = connection;
+
+    connection.start()
+      .then(() => {
+        console.log("SignalR Connected");
+
+        connection.on("piiResult", (result) => {
+          setMessages(prev => [...prev, result]);
+        });
+
+        connection.on("ValidationResult", (result) => {
+          console.log("Validation Result:", result);
+        });
+
+      })
+      .catch(err => console.error("SignalR Error:", err));
+
+    return () => {
+      connection.stop();
+    };
 
   }, [tabId]);
 
-  useEffect(() => {
+  // -----------------------------
+  // Debounced Validation
+  // -----------------------------
+  const validatePrompt = useRef(
+  debounce((text) => {
 
-    if (connection) {
+    const conn = connectionRef.current;
+    if (!conn || conn.state !== "Connected") return;
 
-      connection.start()
-        .then(() => {
+    const requestId = ++requestIdRef.current;
 
-          console.log("Connected to SignalR");
+    conn.invoke("ValidatePrompt", text, tabId)
+      .catch(err => console.error(err));
 
-          connection.on("piiResult", (result) => {
+  }, 500)
+).current;
 
-            setMessages(prev => [...prev, result]);
+  // -----------------------------
+  // Input Change
+  // -----------------------------
+  const handleChange = (e) => {
 
-          });
+    const value = e.target.value;
 
-        })
-        .catch(err => console.error(err));
+    setText(value);
 
+    // optional optimization
+    if (value.length > 2) {
+      validatePrompt(value);
     }
-
-  }, [connection]);
-
-  const sendRequest = async () => {
-
-    await fetch(`${apiUrl}/api/pii`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        text: text,
-        tabId: tabId
-      })
-    });
-
-    setText("");
 
   };
 
+  // -----------------------------
+  // Send API Request
+  // -----------------------------
+  const sendRequest = async () => {
+
+    try {
+
+      await fetch(`${localUrl}/api/pii`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          text: text,
+          tabId: tabId
+        })
+      });
+
+      setText("");
+
+    } catch (err) {
+      console.error(err);
+    }
+
+  };
+
+  // -----------------------------
+  // UI
+  // -----------------------------
   return (
     <div style={{ padding: 40 }}>
 
@@ -65,33 +115,82 @@ function App() {
 
       <input
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={handleChange}
         placeholder="Enter text"
+        style={{ width: 400, padding: 8 }}
       />
 
-      <button onClick={sendRequest}>Send</button>
+      <button onClick={sendRequest} style={{ marginLeft: 10 }}>
+        Send
+      </button>
 
       <h3>Results</h3>
 
       <ul>
 
         {messages.map((m, index) => (
+
           <li key={index}>
-            <label style = {{ color: m.containsPII ? "red" : "green" }}>
+
+            <label style={{ color: m.containsPII ? "red" : "green" }}>
               {m.containsPII ? "PII Detected" : "No PII Detected"}
             </label>
-            |
-           Prompt: <span style={{ color: m.containsPII ? "red" : "blue" }}>{m.rawPrompt}</span> | 
-           ID: <span style={{ color: m.containsPII ? "red" : "blue" }}>{m.id}</span> | 
-           ContainsPII:<span style={{ color: m.containsPII ? "red" : "blue" }}>{m.containsPII.toString()}</span> | 
-           Message: <span style={{ color: m.containsPII ? "red" : "blue" }}>{m.message}</span>
+
+            {" | "}
+
+            Prompt:
+            <span style={{ color: m.containsPII ? "red" : "blue" }}>
+              {m.rawPrompt}
+            </span>
+
+            {" | "}
+
+            ID:
+            <span style={{ color: m.containsPII ? "red" : "blue" }}>
+              {m.id}
+            </span>
+
+            {" | "}
+
+            ContainsPII:
+            <span style={{ color: m.containsPII ? "red" : "blue" }}>
+              {m.containsPII.toString()}
+            </span>
+
+            {" | "}
+
+            Message:
+            <span style={{ color: m.containsPII ? "red" : "blue" }}>
+              {m.message}
+            </span>
+
           </li>
+
         ))}
 
       </ul>
 
     </div>
   );
+
+}
+
+// -----------------------------
+// Debounce Utility
+// -----------------------------
+function debounce(fn, delay) {
+
+  let timer;
+
+  return function (...args) {
+
+    clearTimeout(timer);
+
+    timer = setTimeout(() => {
+      fn(...args);
+    }, delay);
+
+  };
 
 }
 
