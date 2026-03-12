@@ -9,7 +9,7 @@ function App() {
   const [text, setText] = useState("");
   const [messages, setMessages] = useState([]);
   const [tabId] = useState(getTabId());
-  const requestIdRef = useRef(0);
+  // const requestIdRef = useRef(0);
 
   const connectionRef = useRef(null);
 
@@ -55,7 +55,7 @@ function App() {
     const conn = connectionRef.current;
     if (!conn || conn.state !== "Connected") return;
 
-    const requestId = ++requestIdRef.current;
+    // const requestId = ++requestIdRef.current;
 
     conn.invoke("ValidatePrompt", text, tabId)
       .catch(err => console.error(err));
